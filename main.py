@@ -7,7 +7,7 @@ import asyncio
 
 # --- AYARLAR ---
 OWNER_ID = 1507395734163689583
-LOG_CHANNEL_ID = 0 # Buraya kanal ID'ni yaz
+LOG_CHANNEL_ID = 1526664676425994260 # Buraya kanal ID'ni yaz
 KUFURLER = ["kufur1", "kufur2"] 
 
 intents = discord.Intents.default()
