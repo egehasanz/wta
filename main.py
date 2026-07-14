@@ -11,8 +11,7 @@ LOG_CHANNEL_ID = 1526664676425994260 # Buraya kanal ID'ni yaz
 KUFURLER = KUFURLER = [
     "amk", "aq", "orospu", "piç", "siktir", "göt", "yavşak", 
     "amına", "sik", "sikim", "sikerim", "pezevenk", "ebenin", 
-    "oc", "oç", "yarrak", "amk.", "aq.", "piç.", "siktir."
-]
+    "oc", "oç", "yarrak", "amk.", "aq.", "piç.", "siktir."]
 
 intents = discord.Intents.default()
 intents.message_content = True
