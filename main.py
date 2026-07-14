@@ -7,9 +7,15 @@ import asyncio
 
 # --- AYARLAR ---
 OWNER_ID = 1507395734163689583
-LOG_CHANNEL_ID = 1526664676425994260  # Log kanalın buraya eklendi
-MUAF_ROL_ID = 1526638053798445156    # Muaf rol
-KUFURLER = ["amk", "aq", "orospu", "piç", "siktir", "göt", "yavşak", "amına", "sik"] 
+LOG_CHANNEL_ID = 1526664676425994260
+MUAF_ROL_ID = 1526638053798445156
+
+# Küfür listesini genişlettim ve türetilmiş hallerini de kapsayacak şekilde güncelledim
+KUFURLER = [
+    "amk", "aq", "orospu", "pic", "siktir", "got", "yavsak", "amina", "sik", 
+    "oc", "oç", "yarrak", "yarak", "ibne", "kahpe", "yavşak", "göt", "piç",
+    "amına", "amk", "sikim", "sikerim", "siktir", "pezevenk", "ebenin", "ananı"
+]
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -32,39 +38,24 @@ def yetkili_mi(ctx):
 # --- EVENTLER ---
 @bot.event
 async def on_ready():
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="WTA Security - Aktif"))
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="WTA Security - Koruma Aktif"))
     print("Bot profesyonel modda aktif!")
 
-# Küfür Filtresi
 @bot.event
 async def on_message(message):
     if message.author.bot: return
+    
+    # Küfür Kontrolü (Gelişmiş Tarama)
     rol_var_mi = any(role.id == MUAF_ROL_ID for role in message.author.roles)
     if not rol_var_mi:
-        if any(word in message.content.lower() for word in KUFURLER):
+        content = message.content.lower()
+        # Herhangi bir küfür mesajın içinde geçiyor mu?
+        if any(bad_word in content for bad_word in KUFURLER):
             await message.delete()
-            await message.channel.send(f"⚠️ {message.author.mention}, küfür yasak!")
+            await message.channel.send(f"⚠️ {message.author.mention}, küfür yasak!", delete_after=5)
             return
+            
     await bot.process_commands(message)
-
-# Log Sistemleri
-@bot.event
-async def on_message_delete(message):
-    log_ch = bot.get_channel(LOG_CHANNEL_ID)
-    if log_ch and not message.author.bot:
-        embed = discord.Embed(title="🗑️ Mesaj Silindi", color=discord.Color.red())
-        embed.add_field(name="Yazan", value=message.author.name)
-        embed.add_field(name="Mesaj", value=message.content[:1024])
-        await log_ch.send(embed=embed)
-
-@bot.event
-async def on_voice_state_update(member, before, after):
-    log_ch = bot.get_channel(LOG_CHANNEL_ID)
-    if log_ch:
-        if before.channel is None and after.channel is not None:
-            await log_ch.send(f"🔊 {member.name}, {after.channel.name} kanalına katıldı.")
-        elif before.channel is not None and after.channel is None:
-            await log_ch.send(f"🔇 {member.name}, sesli kanaldan ayrıldı.")
 
 # --- KOMUTLAR ---
 @bot.command()
@@ -80,16 +71,6 @@ async def kick(ctx, member: discord.Member, *, sebep="Belirtilmedi"):
     await ctx.send(f"👢 {member.name} sunucudan atıldı.")
 
 @bot.command()
-async def unban(ctx, user_id: int):
-    if not yetkili_mi(ctx): return
-    try:
-        user = await bot.fetch_user(user_id)
-        await ctx.guild.unban(user)
-        await ctx.send(f"🔓 {user.name} banı kaldırıldı.")
-    except:
-        await ctx.send("❌ Kullanıcı bulunamadı.")
-
-@bot.command()
 async def sustur(ctx, member: discord.Member, dakika: int, *, sebep="Sebep yok"):
     if not yetkili_mi(ctx): return
     until = discord.utils.utcnow() + datetime.timedelta(minutes=dakika)
@@ -100,9 +81,7 @@ async def sustur(ctx, member: discord.Member, dakika: int, *, sebep="Sebep yok")
 async def temizle(ctx, miktar: int):
     if not yetkili_mi(ctx): return
     await ctx.channel.purge(limit=miktar + 1)
-    msg = await ctx.send(f"🧹 {miktar} mesaj silindi.")
-    await asyncio.sleep(2)
-    await msg.delete()
+    msg = await ctx.send(f"🧹 {miktar} mesaj silindi.", delete_after=3)
 
 @bot.command()
 async def uyari(ctx, member: discord.Member, *, sebep="Sebep yok"):
@@ -116,9 +95,9 @@ async def uyari(ctx, member: discord.Member, *, sebep="Sebep yok"):
 @bot.command(name="yardim")
 async def yardim(ctx):
     embed = discord.Embed(title="🛡️ WTA Security - Komut Merkezi", color=discord.Color.blue())
-    embed.add_field(name="🔨 Moderasyon", value="`.ban`, `.kick`, `.unban ID`, `.sustur`, `.temizle`", inline=False)
+    embed.add_field(name="🔨 Moderasyon", value="`.ban`, `.kick`, `.sustur`, `.temizle`", inline=False)
     embed.add_field(name="⚠️ Uyarılar", value="`.uyari @üye`, `.uyarilar @üye`", inline=False)
-    embed.add_field(name="⚙️ Yönetim", value="`.yetkiekle @üye`", inline=False)
+    embed.add_field(name="⚙️ Genel", value="`.yetkiekle @üye`", inline=False)
     await ctx.send(embed=embed)
 
 bot.run(os.getenv("BOT_TOKEN"))
