@@ -30,15 +30,15 @@ def is_authorized(ctx):
 async def on_ready():
     activity = discord.Activity(type=discord.ActivityType.listening, name="OwO Trades #AÇILIŞ")
     await bot.change_presence(activity=activity)
-    print(f"{bot.user} aktif!")
+    print(f"{bot.user} başarıyla başlatıldı.")
 
 @bot.event
 async def on_message(message):
     if message.author.bot: return
-    # Basit Reklam Engelleme
-    if "discord.gg/" in message.content:
+    # Reklam Engelleme
+    if "discord.gg/" in message.content.lower():
         await message.delete()
-        await message.channel.send(f"{message.author.mention} Reklam yasak!")
+        await message.channel.send(f"{message.author.mention}, reklam yasak!")
     await bot.process_commands(message)
 
 # --- KOMUTLAR ---
@@ -49,65 +49,71 @@ async def yetkiekle(ctx, member: discord.Member):
     if member.id not in data:
         data.append(member.id)
         with open(DATA_FILE, "w") as f: json.dump(data, f)
-        await ctx.send(f"{member.name} yetkilendirildi.")
+        await ctx.send(f"✅ {member.name} artık yetkili.")
 
 @bot.command()
 async def ban(ctx, member: discord.Member, *, reason="Sebep yok"):
     if not is_authorized(ctx): return
     await member.ban(reason=reason)
-    await ctx.send(f"{member.name} banlandı.")
+    await ctx.send(f"🔨 {member.name} sunucudan banlandı.")
 
 @bot.command()
 async def kick(ctx, member: discord.Member, *, reason="Sebep yok"):
     if not is_authorized(ctx): return
     await member.kick(reason=reason)
-    await ctx.send(f"{member.name} atıldı.")
+    await ctx.send(f"👢 {member.name} sunucudan atıldı.")
 
 @bot.command()
 async def mute(ctx, member: discord.Member, duration: int, *, reason="Sebep yok"):
     if not is_authorized(ctx): return
     until = discord.utils.utcnow() + datetime.timedelta(minutes=duration)
     await member.timeout(until, reason=reason)
-    await ctx.send(f"{member.name} {duration} dakika susturuldu.")
+    await ctx.send(f"🤐 {member.name} {duration} dakika susturuldu.")
 
 @bot.command()
 async def unmute(ctx, member: discord.Member):
     if not is_authorized(ctx): return
     await member.timeout(None)
-    await ctx.send(f"{member.name} susturması kaldırıldı.")
+    await ctx.send(f"🔊 {member.name} susturması kaldırıldı.")
 
 @bot.command()
 async def warn(ctx, member: discord.Member, *, reason="Sebep yok"):
     if not is_authorized(ctx): return
-    await ctx.send(f"{member.name} uyarıldı: {reason}")
+    await ctx.send(f"⚠️ {member.name} uyarıldı: {reason}")
 
 @bot.command()
 async def temizle(ctx, amount: int):
     if not is_authorized(ctx): return
     await ctx.channel.purge(limit=amount + 1)
-    await ctx.send(f"{amount} mesaj silindi.", delete_after=3)
+    await ctx.send(f"🧹 {amount} mesaj silindi.", delete_after=3)
 
 @bot.command()
 async def rolver(ctx, member: discord.Member, role: discord.Role):
     if not is_authorized(ctx): return
     await member.add_roles(role)
-    await ctx.send(f"{role.name} rolü verildi.")
+    await ctx.send(f"✅ {member.name} kişisine {role.name} rolü verildi.")
 
 @bot.command()
 async def rolal(ctx, member: discord.Member, role: discord.Role):
     if not is_authorized(ctx): return
     await member.remove_roles(role)
-    await ctx.send(f"{role.name} rolü alındı.")
+    await ctx.send(f"❌ {member.name} kişisinden {role.name} rolü alındı.")
 
 @bot.command()
 async def sunucubilgi(ctx):
     if not is_authorized(ctx): return
-    embed = discord.Embed(title="Sunucu Bilgisi", color=discord.Color.green())
-    embed.add_field(name="Üye Sayısı", value=ctx.guild.member_count)
+    embed = discord.Embed(title="📊 Sunucu Bilgileri", color=discord.Color.blue())
+    embed.add_field(name="Üye Sayısı", value=ctx.guild.member_count, inline=True)
+    embed.add_field(name="Kuruluş", value=ctx.guild.created_at.strftime("%d/%m/%Y"), inline=True)
     await ctx.send(embed=embed)
 
 @bot.command()
 async def yardım(ctx):
-    await ctx.send("Komutlar: .ban, .kick, .mute, .unmute, .warn, .temizle, .rolver, .rolal, .sunucubilgi, .yetkiekle")
+    if not is_authorized(ctx): return
+    embed = discord.Embed(title="🤖 Bot Yardım Menüsü", color=discord.Color.purple())
+    embed.add_field(name="🔨 Moderasyon", value="`.ban` `.kick` `.mute` `.unmute` `.warn` `.temizle`", inline=False)
+    embed.add_field(name="🛡️ Yetki & Yönetim", value="`.yetkiekle` `.rolver` `.rolal` `.sunucubilgi`", inline=False)
+    embed.set_footer(text="Ege tarafından yönetiliyor.")
+    await ctx.send(embed=embed)
 
 bot.run(os.getenv("BOT_TOKEN"))
