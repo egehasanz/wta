@@ -7,10 +7,12 @@ import os
 # --- AYARLAR ---
 LOG_CHANNEL_ID = 1526664676425994260
 WELCOME_CHANNEL_ID = 1526706539614699591
+
+# --- BOT BAŞLATMA (Intents burada tanımlandı) ---
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# --- LOG SİSTEMLERİ ---
+# --- LOG SİSTEMİ ---
 async def log_gonder(guild, baslik, detay):
     channel = guild.get_channel(LOG_CHANNEL_ID)
     if channel:
@@ -20,14 +22,18 @@ async def log_gonder(guild, baslik, detay):
 @bot.event
 async def on_ready():
     await bot.tree.sync()
-    print(f"{bot.user} - WTA Security Tüm Sistemler Aktif!")
+    print(f"{bot.user} - WTA Security Aktif ve Slash Komutlar Senkronize Edildi!")
 
-# --- GİRİŞ / ÇIKIŞ ---
+# --- HOŞ GELDİN / GİDİŞ ---
 @bot.event
 async def on_member_join(member):
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
     if channel:
-        embed = discord.Embed(title="👋 Aramıza Hoş Geldin!", description=f"Merhaba {member.mention}, {member.guild.name} sunucusuna katıldı! Seninle beraber {member.guild.member_count} kişi olduk.", color=0x2ecc71)
+        embed = discord.Embed(
+            title="╭・・Hoş Geldin",
+            description=f"┆  Kullanıcı: {member.mention}\n┆  Üye Sayısı: {member.guild.member_count}\n┆  Sohbete katılmayı unutma!\n╰・・OwO Trades #AÇILIŞ",
+            color=0x2ecc71
+        )
         embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
         await channel.send(embed=embed)
 
@@ -35,8 +41,11 @@ async def on_member_join(member):
 async def on_member_remove(member):
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
     if channel:
-        embed = discord.Embed(title="😢 Bir Üye Ayrıldı", description=f"**{member.name}** aramızdan ayrıldı.", color=0xe74c3c)
-        embed.set_footer(text=f"Kalan üye sayısı: {member.guild.member_count}")
+        embed = discord.Embed(
+            title="╭・・Güle Güle",
+            description=f"┆  Kullanıcı: {member.name}\n┆  Aramızdan ayrıldı.\n╰・・",
+            color=0xe74c3c
+        )
         await channel.send(embed=embed)
 
 # --- SLASH KOMUTLARI ---
