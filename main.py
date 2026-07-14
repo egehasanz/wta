@@ -11,8 +11,8 @@ LOG_CHANNEL_ID = 1526664676425994260
 MUAF_ROL_ID = 1526638053798445156
 
 # --- BOT KURULUM ---
-intents = discord.Intents.all()  # Bu satır kodunun başlarında olmalı
-bot = commands.Bot(command_prefix="/", intents=intents)
+# Kodu bu şekilde değiştir
+bot = commands.Bot(command_prefix=".", intents=intents)
 
 # --- VERİ YÖNETİMİ ---
 def dosya_yukle(filename):
