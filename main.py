@@ -1,92 +1,88 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
-import json
-import os
 import datetime
+import os
 
 # --- AYARLAR ---
 LOG_CHANNEL_ID = 1526664676425994260
-MUAF_ROL_ID = 1526638053798445156
-
+WELCOME_CHANNEL_ID = 1526706539614699591
 intents = discord.Intents.all()
-bot = commands.Bot(command_prefix=".", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents)
 
-# --- KOMUTLAR ---
+# --- LOG SİSTEMLERİ ---
+async def log_gonder(guild, baslik, detay):
+    channel = guild.get_channel(LOG_CHANNEL_ID)
+    if channel:
+        embed = discord.Embed(title=f"🛡️ {baslik}", description=detay, color=discord.Color.red())
+        await channel.send(embed=embed)
 
-# 1. Moderasyon & Yönetim
-@bot.command()
-async def ban(ctx, member: discord.Member, *, sebep="Belirtilmedi"):
+@bot.event
+async def on_ready():
+    await bot.tree.sync()
+    print(f"{bot.user} - WTA Security Tüm Sistemler Aktif!")
+
+# --- GİRİŞ / ÇIKIŞ ---
+@bot.event
+async def on_member_join(member):
+    channel = bot.get_channel(WELCOME_CHANNEL_ID)
+    if channel:
+        embed = discord.Embed(title="👋 Aramıza Hoş Geldin!", description=f"Merhaba {member.mention}, {member.guild.name} sunucusuna katıldı! Seninle beraber {member.guild.member_count} kişi olduk.", color=0x2ecc71)
+        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
+        await channel.send(embed=embed)
+
+@bot.event
+async def on_member_remove(member):
+    channel = bot.get_channel(WELCOME_CHANNEL_ID)
+    if channel:
+        embed = discord.Embed(title="😢 Bir Üye Ayrıldı", description=f"**{member.name}** aramızdan ayrıldı.", color=0xe74c3c)
+        embed.set_footer(text=f"Kalan üye sayısı: {member.guild.member_count}")
+        await channel.send(embed=embed)
+
+# --- SLASH KOMUTLARI ---
+@bot.tree.command(name="ban", description="Kullanıcıyı yasaklar.")
+async def ban(interaction: discord.Interaction, member: discord.Member, sebep: str = "Belirtilmedi"):
     await member.ban(reason=sebep)
-    await ctx.send(f"🔨 {member.name} sunucudan uçuruldu.")
+    await log_gonder(interaction.guild, "Ban", f"{member.mention} yasaklandı. Sebep: {sebep}")
+    await interaction.response.send_message(f"🔨 {member.name} banlandı.")
 
-@bot.command()
-async def kick(ctx, member: discord.Member, *, sebep="Belirtilmedi"):
+@bot.tree.command(name="kick", description="Kullanıcıyı atar.")
+async def kick(interaction: discord.Interaction, member: discord.Member, sebep: str = "Belirtilmedi"):
     await member.kick(reason=sebep)
-    await ctx.send(f"👢 {member.name} tekmelendi.")
+    await log_gonder(interaction.guild, "Kick", f"{member.mention} atıldı. Sebep: {sebep}")
+    await interaction.response.send_message(f"👢 {member.name} atıldı.")
 
-@bot.command()
-async def sustur(ctx, member: discord.Member, dakika: int):
+@bot.tree.command(name="sustur", description="Kullanıcıyı susturur.")
+async def sustur(interaction: discord.Interaction, member: discord.Member, dakika: int):
     await member.timeout(datetime.timedelta(minutes=dakika))
-    await ctx.send(f"🤐 {member.name} {dakika} dakika susturuldu.")
+    await interaction.response.send_message(f"🤐 {member.name} {dakika} dakika susturuldu.")
 
-@bot.command()
-async def temizle(ctx, miktar: int):
-    await ctx.channel.purge(limit=miktar + 1)
-    await ctx.send(f"🧹 {miktar} mesaj silindi.", delete_after=3)
+@bot.tree.command(name="temizle", description="Mesajları siler.")
+async def temizle(interaction: discord.Interaction, miktar: int):
+    await interaction.channel.purge(limit=miktar)
+    await interaction.response.send_message(f"🧹 {miktar} mesaj silindi.", ephemeral=True)
 
-@bot.command()
-async def lockdown(ctx):
-    await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=False)
-    await ctx.send("🔒 Kanal kilitlendi.")
+@bot.tree.command(name="lockdown", description="Kanalı kilitler.")
+async def lockdown(interaction: discord.Interaction):
+    await interaction.channel.set_permissions(interaction.guild.default_role, send_messages=False)
+    await interaction.response.send_message("🔒 Kanal kilitlendi.")
 
-@bot.command()
-async def unlock(ctx):
-    await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=True)
-    await ctx.send("🔓 Kanal kilidi açıldı.")
+@bot.tree.command(name="unlock", description="Kilidi açar.")
+async def unlock(interaction: discord.Interaction):
+    await interaction.channel.set_permissions(interaction.guild.default_role, send_messages=True)
+    await interaction.response.send_message("🔓 Kanal kilidi açıldı.")
 
-# 2. Bilgi & Profil
-@bot.command()
-async def avatar(ctx, member: discord.Member = None):
-    member = member or ctx.author
-    embed = discord.Embed(title=f"{member.name} - Avatar", color=0x3498db)
-    embed.set_image(url=member.avatar.url)
-    await ctx.send(embed=embed)
+@bot.tree.command(name="userinfo", description="Kullanıcı bilgisi.")
+async def userinfo(interaction: discord.Interaction, member: discord.Member):
+    embed = discord.Embed(title=f"👤 {member.name} Bilgileri", color=0x3498db)
+    embed.add_field(name="Katılım", value=member.joined_at.strftime("%d/%m/%Y"))
+    await interaction.response.send_message(embed=embed)
 
-@bot.command()
-async def rolbilgi(ctx, role: discord.Role):
-    embed = discord.Embed(title=f"Role: {role.name}", color=role.color)
-    embed.add_field(name="ID", value=role.id)
-    embed.add_field(name="Üye Sayısı", value=len(role.members))
-    embed.add_field(name="Oluşturulma", value=role.created_at.strftime("%d/%m/%Y"))
-    await ctx.send(embed=embed)
-
-@bot.command()
-async def sunucubilgi(ctx):
-    e = discord.Embed(title=f"📊 {ctx.guild.name}", color=0x00ff00)
-    e.add_field(name="Üyeler", value=ctx.guild.member_count)
-    e.add_field(name="Roller", value=len(ctx.guild.roles))
-    e.add_field(name="Kanal", value=len(ctx.guild.channels))
-    await ctx.send(embed=e)
-
-# 3. İletişim & Eğlence
-@bot.command()
-async def duyuru(ctx, *, mesaj):
-    embed = discord.Embed(title="📢 Yeni Duyuru", description=mesaj, color=0xf1c40f)
-    embed.set_footer(text=f"Gönderen: {ctx.author.name}")
-    await ctx.send(embed=embed)
-
-@bot.command()
-async def ping(ctx):
-    await ctx.send(f"🏓 Pong! Gecikme: {round(bot.latency * 1000)}ms")
-
-# 4. Gelişmiş Yardım Menüsü
-@bot.command(name="yardim")
-async def yardim(ctx):
-    e = discord.Embed(title="🛡️ WTA Security - Komuta Merkezi", color=0x9b59b6)
-    e.add_field(name="🔨 Moderasyon", value="`.ban`, `.kick`, `.sustur`, `.temizle`, `.lockdown`, `.unlock`", inline=False)
-    e.add_field(name="👤 Profil & Bilgi", value="`.userinfo`, `.avatar`, `.rolbilgi`, `.sunucubilgi`", inline=False)
-    e.add_field(name="📢 Genel", value="`.duyuru`, `.ping`", inline=False)
-    e.set_thumbnail(url=bot.user.avatar.url)
-    await ctx.send(embed=e)
+@bot.tree.command(name="yardim", description="Yardım menüsü.")
+async def yardim(interaction: discord.Interaction):
+    embed = discord.Embed(title="🛡️ WTA Security - Komut Paneli", color=0x9b59b6)
+    embed.add_field(name="🔨 Moderasyon", value="/ban, /kick, /sustur, /temizle", inline=False)
+    embed.add_field(name="🔒 Güvenlik", value="/lockdown, /unlock, /userinfo", inline=False)
+    await interaction.response.send_message(embed=embed)
 
 bot.run(os.getenv("BOT_TOKEN"))
