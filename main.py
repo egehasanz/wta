@@ -3,15 +3,14 @@ from discord.ext import commands
 import json
 import os
 import datetime
-import asyncio
 
 # --- AYARLAR ---
 OWNER_ID = 1507395734163689583
 LOG_CHANNEL_ID = 1526664676425994260
 MUAF_ROL_ID = 1526638053798445156
 
-# --- BOT KURULUM ---
-# Kodu bu şekilde değiştir
+# --- INTENTS TANIMLAMA (HATA BURADAN KAYNAKLANIYORDU) ---
+intents = discord.Intents.all() 
 bot = commands.Bot(command_prefix=".", intents=intents)
 
 # --- VERİ YÖNETİMİ ---
@@ -19,13 +18,10 @@ def dosya_yukle(filename):
     if not os.path.exists(filename): return {}
     with open(filename, "r") as f: return json.load(f)
 
-def dosya_kaydet(filename, data):
-    with open(filename, "w") as f: json.dump(data, f, indent=4)
-
-# --- GÜVENLİK VE MODERASYON EVENTLERİ ---
+# --- EVENTLER ---
 @bot.event
 async def on_ready():
-    print(f"{bot.user} - WTA Security Gelişmiş Mod Aktif!")
+    print(f"{bot.user} - WTA Security Aktif!")
 
 @bot.event
 async def on_message(message):
@@ -44,7 +40,6 @@ async def on_message(message):
     await bot.process_commands(message)
 
 # --- KOMUTLAR ---
-
 @bot.command()
 async def ban(ctx, member: discord.Member, *, sebep="Belirtilmedi"):
     await member.ban(reason=sebep)
@@ -73,23 +68,11 @@ async def userinfo(ctx, member: discord.Member):
     embed.add_field(name="Sunucuya Katılım", value=member.joined_at.strftime("%d/%m/%Y"), inline=True)
     await ctx.send(embed=embed)
 
-@bot.command()
-async def lockdown(ctx):
-    await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=False)
-    await ctx.send("🔒 Kanal kilitlendi!")
-
-@bot.command()
-async def unlock(ctx):
-    await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=True)
-    await ctx.send("🔓 Kanal kilidi açıldı!")
-
 @bot.command(name="yardim")
 async def yardim(ctx):
-    embed = discord.Embed(title="🛡️ WTA Security - Komut Paneli", description="Tüm güvenlik ve yönetim komutları aşağıdadır.", color=0x9b59b6)
-    embed.add_field(name="🔒 Güvenlik", value="`/lockdown`, `/unlock`, `/userinfo`", inline=False)
-    embed.add_field(name="🔨 Moderasyon", value="`/ban`, `/kick`, `/sustur`, `/temizle`", inline=False)
-    embed.add_field(name="⚙️ Yönetim", value="`/yetkiekle @üye`", inline=False)
-    embed.set_footer(text="WTA Security © 2026")
+    embed = discord.Embed(title="🛡️ WTA Security - Komut Paneli", description="Tüm komutlar:", color=0x9b59b6)
+    embed.add_field(name="🔒 Güvenlik", value="`.lockdown`, `.userinfo`", inline=False)
+    embed.add_field(name="🔨 Moderasyon", value="`.ban`, `.kick`, `.sustur`, `.temizle`", inline=False)
     await ctx.send(embed=embed)
 
 bot.run(os.getenv("BOT_TOKEN"))
