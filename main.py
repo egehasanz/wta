@@ -8,15 +8,22 @@ import os
 # --- AYARLAR ---
 LOG_CHANNEL_ID = 1526664676425994260
 WELCOME_CHANNEL_ID = 1526706539614699591
+TICKET_CATEGORY_ID = 1526969198365114448
+KUFUR_FILE = "kufurler.txt"
 XP_FILE = "xp_data.json"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# --- XP VE LOG YARDIMCI ---
+# --- YARDIMCI SİSTEMLER ---
+def kufurleri_yukle():
+    if not os.path.exists(KUFUR_FILE): return []
+    with open(KUFUR_FILE, "r", encoding="utf-8") as f:
+        return [line.strip().lower() for line in f if line.strip()]
+
 def xp_yukle():
     if not os.path.exists(XP_FILE): return {}
-    with open(XP_FILE, "r") as f: 
+    with open(XP_FILE, "r") as f:
         try: return json.load(f)
         except: return {}
 
@@ -29,82 +36,82 @@ async def log_gonder(guild, baslik, detay):
         embed = discord.Embed(title=f"🛡️ {baslik}", description=detay, color=discord.Color.red())
         await channel.send(embed=embed)
 
+# --- EVENTLER ---
 @bot.event
 async def on_ready():
     await bot.tree.sync()
-    print(f"{bot.user} - WTA Security Tüm Sistemler (Log+XP) Aktif!")
+    print("WTA Security - Tüm sistemler (Moderasyon + Ticket + XP + Koruma) aktif!")
 
-# --- MESAJ VE XP SİSTEMİ ---
 @bot.event
 async def on_message(message):
     if message.author.bot: return
     
+    # 1. Küfür Kontrolü
+    kufurler = kufurleri_yukle()
+    if any(kelime in message.content.lower() for kelime in kufurler):
+        await message.delete()
+        await log_gonder(message.guild, "Küfür Engellendi", f"{message.author.mention} mesajı silindi.")
+        return
+
+    # 2. XP Sistemi
     data = xp_yukle()
-    user_id = str(message.author.id)
-    yeni_puan = data.get(user_id, 0) + 1
-    data[user_id] = yeni_puan
+    uid = str(message.author.id)
+    data[uid] = data.get(uid, 0) + 1
     xp_kaydet(data)
     
-    if yeni_puan % 50 == 0:
-        yeni_level = yeni_puan // 50
-        embed = discord.Embed(title="🎉 SEVİYE ATLADIN!", description=f"Tebrikler {message.author.mention}, **Level {yeni_level}** oldun!", color=0xf1c40f)
-        await message.channel.send(embed=embed)
-    
+    if data[uid] % 50 == 0:
+        await message.channel.send(f"🎉 **{message.author.name}**, Level {data[uid] // 50} oldun!")
+
     await bot.process_commands(message)
 
-# --- GİRİŞ / ÇIKIŞ ---
-@bot.event
-async def on_member_join(member):
-    channel = bot.get_channel(WELCOME_CHANNEL_ID)
-    if channel:
-        embed = discord.Embed(title="╭・・Hoş Geldin", description=f"┆  Kullanıcı: {member.mention}\n┆  Üye Sayısı: {member.guild.member_count}\n┆  Sohbete katılmayı unutma!\n╰・・OwO Trades #AÇILIŞ", color=0x2ecc71)
-        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
-        await channel.send(embed=embed)
-
-@bot.event
-async def on_member_remove(member):
-    channel = bot.get_channel(WELCOME_CHANNEL_ID)
-    if channel:
-        embed = discord.Embed(title="╭・・Güle Güle", description=f"┆  Kullanıcı: {member.name}\n┆  Aramızdan ayrıldı.\n╰・・", color=0xe74c3c)
-        await channel.send(embed=embed)
-
-# --- SLASH KOMUTLARI ---
-@bot.tree.command(name="xp", description="Seviyeni gösterir.")
-async def xp(interaction: discord.Interaction):
-    data = xp_yukle()
-    puan = data.get(str(interaction.user.id), 0)
-    level = puan // 50
-    await interaction.response.send_message(f"📊 **{interaction.user.name}**\nLevel: {level}\nToplam XP: {puan}")
-
+# --- KOMUTLAR ---
 @bot.tree.command(name="ban", description="Kullanıcıyı yasaklar.")
+@app_commands.checks.has_permissions(ban_members=True)
 async def ban(interaction: discord.Interaction, member: discord.Member, sebep: str = "Belirtilmedi"):
     await member.ban(reason=sebep)
-    await log_gonder(interaction.guild, "Ban İşlemi", f"{member.mention} yasaklandı. Sebep: {sebep}")
-    await interaction.response.send_message(f"🔨 {member.name} banlandı.")
+    await log_gonder(interaction.guild, "Ban", f"{member.mention} yasaklandı. Sebep: {sebep}")
+    await interaction.response.send_message(f"🔨 {member.name} yasaklandı.")
 
-@bot.tree.command(name="kick", description="Kullanıcıyı atar.")
-async def kick(interaction: discord.Interaction, member: discord.Member, sebep: str = "Belirtilmedi"):
-    await member.kick(reason=sebep)
-    await log_gonder(interaction.guild, "Kick İşlemi", f"{member.mention} atıldı. Sebep: {sebep}")
-    await interaction.response.send_message(f"👢 {member.name} atıldı.")
+@bot.tree.command(name="unban", description="Kullanıcının yasağını kaldırır.")
+@app_commands.checks.has_permissions(ban_members=True)
+async def unban(interaction: discord.Interaction, user_id: str):
+    user = await bot.fetch_user(int(user_id))
+    await interaction.guild.unban(user)
+    await log_gonder(interaction.guild, "Unban", f"{user.name} yasağı kaldırıldı.")
+    await interaction.response.send_message(f"🔓 {user.name} yasağı kaldırıldı.")
 
-@bot.tree.command(name="sustur", description="Kullanıcıyı susturur.")
-async def sustur(interaction: discord.Interaction, member: discord.Member, dakika: int):
+@bot.tree.command(name="mute", description="Kullanıcıyı susturur.")
+@app_commands.checks.has_permissions(moderate_members=True)
+async def mute(interaction: discord.Interaction, member: discord.Member, dakika: int):
     await member.timeout(datetime.timedelta(minutes=dakika))
-    await log_gonder(interaction.guild, "Susturma", f"{member.mention} {dakika} dk susturuldu.")
+    await log_gonder(interaction.guild, "Mute", f"{member.mention} {dakika} dk susturuldu.")
     await interaction.response.send_message(f"🤐 {member.name} susturuldu.")
 
-@bot.tree.command(name="temizle", description="Mesajları siler.")
-async def temizle(interaction: discord.Interaction, miktar: int):
-    await interaction.channel.purge(limit=miktar)
-    await interaction.response.send_message(f"🧹 {miktar} mesaj silindi.", ephemeral=True)
-    await log_gonder(interaction.guild, "Temizleme", f"{interaction.channel.mention} kanalında {miktar} mesaj silindi.")
+@bot.tree.command(name="unmute", description="Susturmayı kaldırır.")
+@app_commands.checks.has_permissions(moderate_members=True)
+async def unmute(interaction: discord.Interaction, member: discord.Member):
+    await member.timeout(None)
+    await log_gonder(interaction.guild, "Unmute", f"{member.mention} susturması kaldırıldı.")
+    await interaction.response.send_message(f"🔊 {member.name} susturması kaldırıldı.")
 
-@bot.tree.command(name="yardim", description="Yardım menüsü.")
+@bot.tree.command(name="ticket", description="Destek talebi açar.")
+async def ticket(interaction: discord.Interaction):
+    category = interaction.guild.get_channel(TICKET_CATEGORY_ID)
+    channel = await interaction.guild.create_text_channel(
+        name=f"destek-{interaction.user.name}",
+        category=category,
+        overwrites={
+            interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        }
+    )
+    await interaction.response.send_message(f"✅ Ticket açıldı: {channel.mention}", ephemeral=True)
+
+@bot.tree.command(name="yardim", description="Komut menüsü.")
 async def yardim(interaction: discord.Interaction):
-    embed = discord.Embed(title="🛡️ WTA Security - Komut Paneli", color=0x9b59b6)
-    embed.add_field(name="Moderasyon", value="/ban, /kick, /sustur, /temizle", inline=False)
-    embed.add_field(name="Diğer", value="/xp", inline=False)
+    embed = discord.Embed(title="🛡️ WTA Security - Komut Merkezi", color=0x3498db)
+    embed.add_field(name="🔨 Moderasyon", value="/ban, /unban, /mute, /unmute, /kick, /temizle", inline=False)
+    embed.add_field(name="🔒 Ticket & XP", value="/ticket, /xp", inline=False)
     await interaction.response.send_message(embed=embed)
 
 bot.run(os.getenv("BOT_TOKEN"))
