@@ -26,7 +26,6 @@ class TicketModal(discord.ui.Modal, title='Destek Talebi Formu'):
     async def on_submit(self, interaction: discord.Interaction):
         guild = interaction.guild
         
-        # Mükerrer Kontrol
         for ch in guild.text_channels:
             if ch.name == f"ticket-{interaction.user.name.lower()}":
                 await interaction.response.send_message("❌ Zaten aktif bir destek talebin bulunuyor!", ephemeral=True)
@@ -43,7 +42,6 @@ class TicketModal(discord.ui.Modal, title='Destek Talebi Formu'):
             }
         )
 
-        # Karşılama Mesajı
         embed = discord.Embed(
             title="🎫 Yeni Destek Talebi",
             description=f"Selam {interaction.user.mention}, talebin başarıyla açıldı.",
@@ -58,7 +56,18 @@ class TicketModal(discord.ui.Modal, title='Destek Talebi Formu'):
         await channel.send(content=f"<@&{self.role_id}>", embed=embed, view=TicketControls())
         await interaction.response.send_message(f"✅ Talebin oluşturuldu: {channel.mention}", ephemeral=True)
 
-# --- TICKET KONTROLLERİ (KAPAT / LOG) ---
+# --- PANEL BUTONU (KALICI) ---
+class TicketPanelView(discord.ui.View):
+    def __init__(self, cat_id, role_id):
+        super().__init__(timeout=None)
+        self.cat_id = cat_id
+        self.role_id = role_id
+
+    @discord.ui.button(label="Destek Talebi Aç", style=discord.ButtonStyle.blurple, emoji="📩", custom_id="persistent_open")
+    async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(TicketModal(self.cat_id, self.role_id))
+
+# --- KAPATMA BUTONU (KALICI) ---
 class TicketControls(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -67,7 +76,6 @@ class TicketControls(discord.ui.View):
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message("💾 Transkript alınıyor ve kanal siliniyor...")
         
-        # Transkript Oluşturma
         messages = [message async for message in interaction.channel.history(limit=None, oldest_first=True)]
         transcript = ""
         for msg in messages:
@@ -76,7 +84,6 @@ class TicketControls(discord.ui.View):
         
         file = discord.File(io.BytesIO(transcript.encode()), filename=f"transcript-{interaction.channel.name}.txt")
         
-        # Log Kanalına Gönder (Moderasyon modülündeki ID'yi kullanır)
         log_channel = interaction.guild.get_channel(1526664676425994260) 
         if log_channel:
             log_embed = discord.Embed(
@@ -89,12 +96,17 @@ class TicketControls(discord.ui.View):
 
         await interaction.channel.delete()
 
-# --- ANA PANEL ---
+# --- ANA SİSTEM ---
 class Ticket(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.CATEGORY_ID = 1526969198365114448
         self.ROLE_ID = 1526638059880321256
+
+    # Bot her başladığında butonları dinlemeye devam etmesi için kaydeder
+    async def cog_load(self):
+        self.bot.add_view(TicketPanelView(self.CATEGORY_ID, self.ROLE_ID))
+        self.bot.add_view(TicketControls())
 
     @app_commands.command(name="ticket", description="Profesyonel Destek Paneli oluşturur.")
     @app_commands.checks.has_permissions(administrator=True)
@@ -109,16 +121,9 @@ class Ticket(commands.Cog):
             ),
             color=0x2b2d31
         )
-        embed.set_image(url="https://i.imgur.com/8N4Y84m.png") # Buraya sunucuna özel bir banner koyabilirsin
+        embed.set_image(url="https://i.imgur.com/8N4Y84m.png") 
         
-        view = discord.ui.View(timeout=None)
-        btn = discord.ui.Button(label="Destek Talebi Aç", style=discord.ButtonStyle.blurple, emoji="📩", custom_id="persistent_open")
-        
-        async def btn_callback(inter):
-            await inter.response.send_modal(TicketModal(self.CATEGORY_ID, self.ROLE_ID))
-        
-        btn.callback = btn_callback
-        view.add_item(btn)
+        view = TicketPanelView(self.CATEGORY_ID, self.ROLE_ID)
         
         await interaction.response.send_message("Panel Kuruldu.", ephemeral=True)
         await interaction.channel.send(embed=embed, view=view)
