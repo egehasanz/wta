@@ -5,6 +5,7 @@ import io
 import datetime
 
 # --- TICKET MODAL (FORM) ---
+# Kullanıcı butona bastığında açılan form penceresi
 class TicketModal(discord.ui.Modal, title='Destek Talebi Formu'):
     problem = discord.ui.TextInput(
         label='Sorununuz Nedir?',
@@ -26,11 +27,13 @@ class TicketModal(discord.ui.Modal, title='Destek Talebi Formu'):
     async def on_submit(self, interaction: discord.Interaction):
         guild = interaction.guild
         
+        # Kullanıcının zaten açık bileti var mı kontrolü
         for ch in guild.text_channels:
             if ch.name == f"ticket-{interaction.user.name.lower()}":
                 await interaction.response.send_message("❌ Zaten aktif bir destek talebin bulunuyor!", ephemeral=True)
                 return
 
+        # Destek kanalını oluşturma
         cat = guild.get_channel(self.category_id)
         channel = await guild.create_text_channel(
             name=f"ticket-{interaction.user.name.lower()}",
@@ -42,6 +45,7 @@ class TicketModal(discord.ui.Modal, title='Destek Talebi Formu'):
             }
         )
 
+        # Biletin içine giden karşılama mesajı
         embed = discord.Embed(
             title="🎫 Yeni Destek Talebi",
             description=f"Selam {interaction.user.mention}, talebin başarıyla açıldı.",
@@ -53,10 +57,12 @@ class TicketModal(discord.ui.Modal, title='Destek Talebi Formu'):
         embed.add_field(name="👤 Kullanıcı", value=interaction.user.mention, inline=True)
         embed.set_footer(text="Talebi kapatmak için aşağıdaki butonu kullanın.")
         
+        # Yetkili rolünü etiketle, embedi gönder ve kapatma butonunu ekle
         await channel.send(content=f"<@&{self.role_id}>", embed=embed, view=TicketControls())
         await interaction.response.send_message(f"✅ Talebin oluşturuldu: {channel.mention}", ephemeral=True)
 
 # --- PANEL BUTONU (KALICI) ---
+# Ana kanalda duran "Destek Aç" butonu
 class TicketPanelView(discord.ui.View):
     def __init__(self, cat_id, role_id):
         super().__init__(timeout=None)
@@ -65,25 +71,31 @@ class TicketPanelView(discord.ui.View):
 
     @discord.ui.button(label="Destek Talebi Aç", style=discord.ButtonStyle.blurple, emoji="📩", custom_id="persistent_open")
     async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Butona basınca formu (Modal) açar
         await interaction.response.send_modal(TicketModal(self.cat_id, self.role_id))
 
 # --- KAPATMA BUTONU (KALICI) ---
+# Bilet kanalının içinde duran "Kapat" butonu
 class TicketControls(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
     @discord.ui.button(label="Talebi Kapat", style=discord.ButtonStyle.red, custom_id="close_ticket", emoji="🔒")
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("💾 Transkript alınıyor ve kanal siliniyor...")
+        await interaction.response.defer() # Botun düşünmesini sağla (zaman aşımını önler)
+        await interaction.channel.send("💾 Transkript alınıyor ve kanal siliniyor...")
         
+        # Transkript (Konuşma Kaydı) Oluşturma
         messages = [message async for message in interaction.channel.history(limit=None, oldest_first=True)]
         transcript = ""
         for msg in messages:
             timestamp = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
             transcript += f"[{timestamp}] {msg.author.name}: {msg.content}\n"
         
+        # Kaydı dosyaya çevir
         file = discord.File(io.BytesIO(transcript.encode()), filename=f"transcript-{interaction.channel.name}.txt")
         
+        # Log Kanalına Gönder (ID'yi Moderasyon modülündekiyle aynı yapmalısın)
         log_channel = interaction.guild.get_channel(1526664676425994260) 
         if log_channel:
             log_embed = discord.Embed(
@@ -94,16 +106,18 @@ class TicketControls(discord.ui.View):
             )
             await log_channel.send(embed=log_embed, file=file)
 
+        # Kanalı sil
         await interaction.channel.delete()
 
-# --- ANA SİSTEM ---
+# --- ANA SİSTEM COG ---
 class Ticket(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.CATEGORY_ID = 1526969198365114448
-        self.ROLE_ID = 1526638059880321256
+        # AYARLAR (Kendi sunucuna göre değiştir)
+        self.CATEGORY_ID = 1526969198365114448 # Biletlerin açılacağı kategori ID
+        self.ROLE_ID = 1526638059880321256     # Etiketlenecek yetkili rol ID
 
-    # Bot her başladığında butonları dinlemeye devam etmesi için kaydeder
+    # Bot her başladığında butonları dinlemeye devam etmesi için kaydeder (Kalıcılık)
     async def cog_load(self):
         self.bot.add_view(TicketPanelView(self.CATEGORY_ID, self.ROLE_ID))
         self.bot.add_view(TicketControls())
@@ -111,6 +125,7 @@ class Ticket(commands.Cog):
     @app_commands.command(name="ticket", description="Profesyonel Destek Paneli oluşturur.")
     @app_commands.checks.has_permissions(administrator=True)
     async def ticket(self, interaction: discord.Interaction):
+        # Ana Panel Embed'i
         embed = discord.Embed(
             title="📩 WTA Security | Destek Merkezi",
             description=(
@@ -121,7 +136,13 @@ class Ticket(commands.Cog):
             ),
             color=0x2b2d31
         )
-        embed.set_image(url="https://i.imgur.com/8N4Y84m.png") 
+        
+        # --- DEĞİŞİKLİK BURADA ---
+        # Sağ üst köşeye sunucu simgesini koyar
+        if interaction.guild.icon:
+            embed.set_thumbnail(url=interaction.guild.icon.url)
+        # embed.set_image(...) satırı kaldırıldı.
+        # ---------------------------
         
         view = TicketPanelView(self.CATEGORY_ID, self.ROLE_ID)
         
